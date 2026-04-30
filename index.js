@@ -11,11 +11,10 @@ const middlewareConfig = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
 
-// 2. ตั้งค่าสมอง Gemini
+// 2. ตั้งค่าสมอง Gemini (เปลี่ยนเป็นรุ่น pro)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-  model: "gemini-1.5-flash-latest",
-  systemInstruction: "คุณคือ AI ผู้ช่วยอัจฉริยะของโรงเรียนอนุบาลศิริกุล จังหวัดหนองคาย มีหน้าที่ตอบคำถามผู้ปกครองอย่างสุภาพ อ่อนโยน เข้าอกเข้าใจ และให้ข้อมูลที่ถูกต้องเกี่ยวกับการเรียนการสอน กิจกรรม และระเบียบการของโรงเรียน",
+  model: "gemini-pro" 
 });
 
 // 3. สร้างตัวส่งข้อความกลับของ LINE (อัปเดตเป็นโค้ดเวอร์ชันใหม่ล่าสุด)
@@ -38,14 +37,16 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') {
     return Promise.resolve(null);
   }
-
-  try {
+try {
+    // ฝังคาแรคเตอร์โรงเรียนอนุบาลศิริกุลเข้าไปเนียนๆ ก่อนส่งให้ AI คิด
+    const prompt = `คุณคือ AI ผู้ช่วยอัจฉริยะของโรงเรียนอนุบาลศิริกุล จังหวัดหนองคาย มีหน้าที่ตอบคำถามผู้ปกครองอย่างสุภาพ อ่อนโยน เข้าอกเข้าใจ และให้ข้อมูลที่ถูกต้อง\n\nคำถามจากผู้ปกครองคือ: ${event.message.text}`;
+    
     // ส่งข้อความไปให้ Gemini คิด
-    const result = await model.generateContent(event.message.text);
+    const result = await model.generateContent(prompt);
     const response = await result.response;
     const replyText = response.text();
 
-    // ส่งคำตอบกลับไปหาผู้ปกครองใน LINE (อัปเดตเป็นโค้ดเวอร์ชันใหม่ล่าสุด)
+    // ส่งคำตอบกลับไปหาผู้ปกครองใน LINE
     return client.replyMessage({
       replyToken: event.replyToken,
       messages: [{
