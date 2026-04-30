@@ -14,7 +14,7 @@ const middlewareConfig = {
 // 2. ตั้งค่าสมอง Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-  model: "gemini-1.5-flash",
+  model: "gemini-1.5-flash-latest",
   systemInstruction: "คุณคือ AI ผู้ช่วยอัจฉริยะของโรงเรียนอนุบาลศิริกุล จังหวัดหนองคาย มีหน้าที่ตอบคำถามผู้ปกครองอย่างสุภาพ อ่อนโยน เข้าอกเข้าใจ และให้ข้อมูลที่ถูกต้องเกี่ยวกับการเรียนการสอน กิจกรรม และระเบียบการของโรงเรียน",
 });
 
