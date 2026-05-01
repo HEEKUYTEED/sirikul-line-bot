@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sirikul School - Dashboard ผู้อำนวยการ</title>
+    <style>
+        /* --- ตั้งค่าพื้นฐาน (CSS Reset) --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Sarabun', sans-serif; background-color: #f4f7f6; color: #333; padding: 20px; }
+
+        /* --- Header / โลโก้ --- */
+        .header { display: flex; align-items: center; justify-content: center; background-color: #ff9f43; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .school-logo { font-size: 24px; font-weight: bold; margin-right: 10px; }
+        .title { text-align: center; }
+        .date { font-size: 14px; opacity: 0.8; }
+
+        /* --- กล่องการ์ดสรุปตัวเลข (Summary Cards) --- */
+        .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .card { background-color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card-label { font-size: 14px; font-weight: bold; }
+        .card-value { font-size: 32px; font-weight: bold; margin: 5px 0; }
+        
+        /* สีประจำกล่อง */
+        .card.มา { border-left: 5px solid #2ecc71; color: #2ecc71; }
+        .card.ขาด { border-left: 5px solid #e74c3c; color: #e74c3c; }
+        .card.ป่วย { border-left: 5px solid #f1c40f; color: #f1c40f; }
+
+        /* --- โซนข้อมูลรายละเอียด (Content Blocks) --- */
+        .content-section { background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .section-title { font-size: 18px; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; display: flex; align-items: center; }
+        
+        .list-item { margin-bottom: 10px; list-style: none; }
+        .list-item-title { font-weight: bold; color: #ff9f43; }
+
+        /* --- โซนแจ้งเตือน (Alert Block) --- */
+        .content-section.alert { border: 2px solid #e74c3c; background-color: #fff5f5; }
+        .content-section.alert .section-title { color: #e74c3c; border-bottom-color: #e74c3c; }
+    </style>
+    <!-- โหลดฟอนต์ Sarabun -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- 1. Header -->
+    <div class="header">
+        <div class="title">
+            <div class="school-logo">🏫 ศิริกุล</div>
+            ระบบสรุปข้อมูลโรงเรียนรายวัน
+            <div class="date">วันพฤหัสบดีที่ 30 เมษายน 2569</div>
+        </div>
+    </div>
+
+    <!-- 2. Summary Cards -->
+    <div class="summary-container">
+        <div class="card มา">
+            <div class="card-label">🟢 มาเรียน</div>
+            <div class="card-value">120</div>
+            <div>คน</div>
+        </div>
+        <div class="card ขาด">
+            <div class="card-label">🔴 ขาดเรียน</div>
+            <div class="card-value">5</div>
+            <div>คน</div>
+        </div>
+        <div class="card ป่วย">
+            <div class="card-label">😷 ป่วย (เฝ้าระวัง)</div>
+            <div class="card-value">2</div>
+            <div>คน</div>
+        </div>
+    </div>
+
+    <!-- 3. เมนูอาหาร -->
+    <div class="content-section">
+        <div class="section-title">🍱 เมนูอาหารวันนี้</div>
+        <ul>
+            <li class="list-item"><span class="list-item-title">มื้อเช้า:</span> ข้าวต้มหมูสับใส่ไข่ + นมจืด</li>
+            <li class="list-item"><span class="list-item-title">มื้อเที่ยง:</span> ข้าวผัดไก่สามสี + ซุปใสผักกาดขาว + แตงโมเย็นๆ</li>
+            <li class="list-item"><span class="list-item-title">อาหารว่าง:</span> แซนวิชทูน่ามายองเนส + น้ำผลไม้รวม</li>
+        </ul>
+    </div>
+
+    <!-- 4. กิจกรรมเด่น -->
+    <div class="content-section">
+        <div class="section-title">🏃‍♂️ กิจกรรมเด่นประจำวัน</div>
+        <ul>
+            <li class="list-item"><span class="list-item-title">อนุบาล 1:</span> กิจกรรมเล่นทราย เสริมสร้างจินตนาการและพัฒนากล้ามเนื้อมัดเล็ก</li>
+            <li class="list-item"><span class="list-item-title">อนุบาล 2:</span> คลาสร้องเพลงและเต้นประกอบจังหวะ เรียนรู้เสียงดนตรีอย่างสนุกสนาน</li>
+            <li class="list-item"><span class="list-item-title">อนุบาล 3:</span> เรียนรู้คำศัพท์ภาษาอังกฤษเบื้องต้นผ่านบัตรภาพหมวดสัตว์น่ารัก</li>
+        </ul>
+    </div>
+
+    <!-- 5. แจ้งเตือนสุขภาพ -->
+    <div class="content-section alert">
+        <div class="section-title">⚠️ บันทึกสุขภาพ & เฝ้าระวัง</div>
+        <ul>
+            <li class="list-item">1. <span class="list-item-title">น้องเอ (ห้อง อ.2):</span> มีไข้ต่ำๆ (37.8 C) คุณครูให้ทานยาและแจ้งผู้ปกครองให้มารับกลับแล้ว</li>
+            <li class="list-item">2. <span class="list-item-title">น้องบี (ห้อง อ.1):</span> มีอาการน้ำมูกใสและจามเล็กน้อย ทำการแยกเด็กและให้พักผ่อนในห้องพยาบาล</li>
+        </ul>
+    </div>
+
+</body>
+</html>
