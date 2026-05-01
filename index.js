@@ -2,19 +2,25 @@ const express = require("express");
 const line = require("@line/bot-sdk");
 const Groq = require("groq-sdk");
 
-// ── LINE Config ──────────────────────────────────────────
+// ── 1. ตั้งค่า Config ───────────────────────────────────────────────
 const lineConfig = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
-
 const lineClient = new line.messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
 });
-
-// ── Groq Config ──────────────────────────────────────────
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// ── 2. ระบบจำสถานะผู้ใช้ (Role) ─────────────────────────────
+const userState = {};
+
+const RESET_KEYWORDS = [
+  "เปลี่ยนประเภท", "เปลี่ยนสถานะ", "เมนูหลัก",
+  "กลับหน้าแรก", "เริ่มใหม่", "reset",
+];
+
+// ── 3. System Prompts (ใส่ข้อมูลใหม่ล่าสุดแล้ว) ───────────────────────
 const SYSTEM_PROMPTS = {
   parent: `คุณคือ "ครูนุ่น" ผู้ช่วยดูแลผู้ปกครองของโรงเรียนอนุบาลศิริกุล จังหวัดหนองคาย
 คุณเป็นครูสาวอายุ 28 ปี ใจดี พูดเป็นธรรมชาติ เหมือนคุยกับเพื่อนที่ไว้ใจได้
@@ -68,10 +74,6 @@ const SYSTEM_PROMPTS = {
 คุณพ่อคุณแม่: "ครูดูแลเด็กดีมั้ยคะ กังวลอยู่"
 ครูนุ่น: "เข้าใจเลยค่ะ โดยเฉพาะช่วงแรกๆ ที่โรงเรียนครูดูแลใกล้ชิดค่ะ ห้องละไม่เยอะ และมีครูผู้ช่วยด้วยนะคะ"
 
-=== ตัวอย่างที่ห้ามทำ ===
-คุณพ่อคุณแม่: "เปิดกี่โมงคะ"
-❌ "ด้วยความยินดีค่ะ! โรงเรียนอนุบาลศิริกุลของเราเปิดทำการในเวลา 07:30 น. และปิดเวลา 16:30 น. ในวันจันทร์ถึงศุกร์นะคะ 😊✨ หากมีข้อสงสัยเพิ่มเติมสามารถสอบถามได้เลยนะคะ"
-
 === ข้อมูลโรงเรียนอนุบาลศิริกุล ===
 📍 ที่ตั้ง: 143 หมู่ 1 ตำบลโพนสว่าง อำเภอเมืองหนองคาย จังหวัดหนองคาย 43100
 🗺️ แผนที่การเดินทาง: https://maps.app.goo.gl/KaWAaWdwJurc24997
@@ -105,17 +107,57 @@ const SYSTEM_PROMPTS = {
 2. สำเนาสูติบัตร 1 ฉบับ
 🎒 ของใช้ส่วนตัว (เตรียมมาเองตอนเปิดเทอม): แปรงสีฟัน, ยาสีฟัน, แป้งทาตัว
 `,
-// ... (Role อื่นๆ อย่าง interested, teacher, director ใส่ต่อด้านล่างได้เลยครับ)
+  interested: `คุณคือ "ครูนุ่น" ผู้ช่วยแนะนำโรงเรียนอนุบาลศิริกุล สำหรับผู้ที่สนใจส่งบุตรหลานเข้าเรียน
+บุคลิก: เป็นกันเอง อบอุ่น ชวนคุย ทำให้รู้สึกไว้วางใจและอยากส่งลูกมาเรียน
+กฎการตอบ: ตอบสั้น กระชับ แนะนำจุดเด่น ถ้านอกเหนือจากนี้ให้โทร 086-580-5777
+ข้อมูลโรงเรียน: ที่ตั้ง 143 ม.1 ต.โพนสว่าง อ.เมือง หนองคาย 43100 แผนที่: https://maps.app.goo.gl/KaWAaWdwJurc24997`,
+  teacher: `คุณคือ AI ผู้ช่วยสำหรับบุคลากรครู โรงเรียนอนุบาลศิริกุล ตอบสั้น กระชับ ตรงประเด็น`,
+  director: `คุณคือ AI ผู้ช่วยส่วนตัวสำหรับผู้อำนวยการโรงเรียนอนุบาลศิริกุล ตอบแบบเป็นทางการ กระชับ สรุปใจความสำคัญชัดเจน`,
+  developer: `คุณคือผู้ช่วย AI สำหรับพัฒนาระบบแชทบอทโรงเรียนอนุบาลศิริกุล ตอบเรื่อง Node.js, API, Webhook ให้กระชับ เน้นแก้ปัญหา`
 };
 
-// ── Groq Generate with Retry ─────────────────────────────
-async function generateReply(userMessage, retries = 3) {
+// ── 4. ฟังก์ชันสร้างปุ่มเลือก Role ───────────────────────────────
+function getRoleSelectionMessage() {
+  return {
+    type: "flex",
+    altText: "กรุณาเลือกประเภทผู้ใช้งาน",
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [{ type: "text", text: "🏫 โรงเรียนอนุบาลศิริกุล", weight: "bold", size: "lg", color: "#ffffff" }],
+        backgroundColor: "#F97316",
+        paddingAll: "16px",
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          { type: "text", text: "สวัสดีค่ะ 👋 กรุณาเลือกประเภทการใช้งานของคุณนะคะ", wrap: true, margin: "md" },
+          { type: "separator", margin: "lg" },
+          { type: "button", action: { type: "message", label: "👨‍👩‍👧 ผู้ปกครองนักเรียน", text: "เลือก:parent" }, style: "primary", color: "#F97316", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "💡 ผู้สนใจส่งบุตรหลาน", text: "เลือก:interested" }, style: "primary", color: "#22C55E", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "👩‍🏫 คุณครู / บุคลากร", text: "เลือก:teacher" }, style: "primary", color: "#3B82F6", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "👔 ผู้อำนวยการ", text: "เลือก:director" }, style: "primary", color: "#8B5CF6", margin: "sm", height: "sm" },
+        ],
+      },
+    },
+  };
+}
+
+// ── 5. Groq Generate with Retry ─────────────────────────────
+async function generateReply(userMessage, role, retries = 3) {
+  // ✅ แก้ไข Error ตรงนี้: ดึง Prompt ให้ตรงกับตัวแปร SYSTEM_PROMPTS
+  const systemPrompt = SYSTEM_PROMPTS[role] || SYSTEM_PROMPTS["parent"]; 
+
   for (let i = 0; i < retries; i++) {
     try {
       const completion = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt }, // ✅ ใช้ตัวแปร systemPrompt แทน
           { role: "user", content: userMessage },
         ],
         max_tokens: 1024,
@@ -124,10 +166,7 @@ async function generateReply(userMessage, retries = 3) {
       return completion.choices[0].message.content;
 
     } catch (error) {
-      const isRateLimit = error.status === 429;
-      const isLastAttempt = i === retries - 1;
-
-      if (isRateLimit && !isLastAttempt) {
+      if (error.status === 429 && i < retries - 1) {
         const delay = 15000 * (i + 1);
         console.log(`Rate limited. Retrying in ${delay / 1000}s...`);
         await new Promise(res => setTimeout(res, delay));
@@ -138,25 +177,83 @@ async function generateReply(userMessage, retries = 3) {
   }
 }
 
-// ── Handle LINE Event ────────────────────────────────────
+// ── 6. Handle LINE Event ────────────────────────────────────
 async function handleEvent(event) {
   if (event.type !== "message" || event.message.type !== "text") return;
 
-  try {
-    const replyText = await generateReply(event.message.text);
+  const userId = event.source.userId;
+  const text = event.message.text.trim();
 
+  // ดักจับคำสั่งเพื่อเริ่มเลือก Role ใหม่
+  const isReset = RESET_KEYWORDS.some(k => text.includes(k));
+  if (isReset) {
+    delete userState[userId];
+    return lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [getRoleSelectionMessage()],
+    });
+  }
+
+  // 🔒 ระบบดักจับรหัสผ่าน PIN ของผู้อำนวยการ
+  if (userState[userId] === "WAITING_FOR_PIN") {
+    const SECRET_PIN = process.env.DIRECTOR_PIN || "9999"; 
+    if (text === SECRET_PIN) {
+      userState[userId] = "director"; 
+      return lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: "text", text: "✅ รหัสถูกต้อง ยินดีต้อนรับท่านผู้อำนวยการครับ พิมพ์ทักทาย AI ผอ. ได้เลย" }],
+      });
+    } else {
+      delete userState[userId]; 
+      return lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [
+            { type: "text", text: "❌ รหัสผ่านไม่ถูกต้องค่ะ ระบบได้ยกเลิกการทำรายการ" },
+            getRoleSelectionMessage()
+        ],
+      });
+    }
+  }
+
+  // ดักจับเมื่อผู้ใช้กดปุ่มเลือก Role
+  if (text.startsWith("เลือก:")) {
+    const role = text.split(":")[1];
+    if (SYSTEM_PROMPTS[role]) {
+        if (role === "director") {
+            userState[userId] = "WAITING_FOR_PIN";
+            return lineClient.replyMessage({
+              replyToken: event.replyToken,
+              messages: [{ type: "text", text: "🔒 กรุณากรอกรหัส PIN 4 หลักเพื่อยืนยันตัวตน:" }],
+            });
+        }
+        userState[userId] = role;
+        return lineClient.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{ type: "text", text: "✅ ระบบบันทึกสถานะเรียบร้อย พิมพ์ข้อความพูดคุยได้เลยนะคะ (พิมพ์ 'เปลี่ยนสถานะ' เพื่อเลือกใหม่ได้เสมอ)" }],
+        });
+    }
+  }
+
+  // ถ้าผู้ใช้ยังไม่มี Role ให้ส่งปุ่มไปให้กดเลือกก่อน
+  if (!userState[userId]) {
+    return lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [getRoleSelectionMessage()],
+    });
+  }
+
+  // ส่งข้อความให้ AI คิดตาม Role
+  try {
+    const replyText = await generateReply(text, userState[userId]);
     await lineClient.replyMessage({
       replyToken: event.replyToken,
       messages: [{ type: "text", text: replyText }],
     });
-
   } catch (error) {
     console.error("Error:", error);
-
     const userMessage = error.status === 429
       ? "ขออภัยค่ะ ระบบยุ่งอยู่ชั่วขณะ กรุณารอสักครู่แล้วลองใหม่นะคะ 🙏"
       : "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ";
-
     await lineClient.replyMessage({
       replyToken: event.replyToken,
       messages: [{ type: "text", text: userMessage }],
@@ -164,7 +261,7 @@ async function handleEvent(event) {
   }
 }
 
-// ── Express Server ───────────────────────────────────────
+// ── 7. Express Server ───────────────────────────────────────
 const app = express();
 
 app.post(
