@@ -14,20 +14,15 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ── 2. ระบบจำสถานะและเก็บข้อมูลผู้ใช้ ─────────────────────────────
 const userState = {};
-const userData = {}; // เอาไว้เก็บชื่อลูก และ วิธีรับส่ง
+const userData = {}; 
 
-// รายชื่อครูที่ได้รับอนุญาต (ห้ามผู้ใช้อื่นเห็น)
 const TEACHER_NAMES = ["โจ้", "เจี๊ยบ", "แอ้", "กา", "วา", "วาวา", "นาง", "ติ๊ก", "ติก", "ติ้ก"];
+const RESET_KEYWORDS = ["เปลี่ยนประเภท", "เปลี่ยนสถานะ", "เมนูหลัก", "กลับหน้าแรก", "เริ่มใหม่", "reset"];
 
-const RESET_KEYWORDS = [
-  "เปลี่ยนประเภท", "เปลี่ยนสถานะ", "เมนูหลัก",
-  "กลับหน้าแรก", "เริ่มใหม่", "reset",
-];
-
-// ── 3. System Prompts (อัปเกรดความใจเย็นและลดอีโมจิ) ───────────────────────
+// ── 3. System Prompts ───────────────────────
 const SYSTEM_PROMPTS = {
   parent: `คุณคือ "ครูนุ่น" ผู้ช่วยดูแลผู้ปกครองของโรงเรียนอนุบาลศิริกุล จังหวัดหนองคาย
-คุณเป็นครูสาวอายุ 28 ปี มีจิตวิทยาความเป็นครูสูงมาก ใจเย็น อบอุ่น และใส่ใจเด็กๆ จากใจจริง
+คุณเป็นครูสาวอายุ 25 ปี มีจิตวิทยาความเป็นครูสูงมาก ใจเย็น อบอุ่น และใส่ใจเด็กๆ จากใจจริง
 
 === บุคลิกและจิตวิทยาความเป็นครู (สำคัญมาก) ===
 - ต้องใจเย็นมากๆ ตอบด้วยความเข้าใจและเป็นห่วงเป็นใยเสมอ
@@ -50,16 +45,6 @@ const SYSTEM_PROMPTS = {
 === การจัดการเมื่อไม่รู้คำตอบ ===
 - ถ้าถามเรื่องอายุนอกเกณฑ์ หรือไม่มีข้อมูล ให้บอกว่า "เรื่องนี้ครูนุ่นรบกวนคุณพ่อคุณแม่เข้ามาติดต่อที่โรงเรียนโดยตรง หรือโทรสอบถามได้เลยนะคะ เบอร์ 086-580-5777 ค่ะ"
 - ห้ามแต่งข้อมูลเอง และห้ามบอกว่าตัวเองเป็น AI
-
-=== ตัวอย่างการตอบที่ถูกต้อง ===
-คุณพ่อคุณแม่: "ลูกป่วยง่ายมากเลยช่วงนี้ พาไปโรงเรียนได้มั้ยคะ"
-ครูนุ่น: "เข้าใจความกังวลของคุณแม่เลยค่ะ ช่วงนี้อากาศเปลี่ยนบ่อย ถ้าน้องมีไข้หรืออาการยังไม่ค่อยดี ครูนุ่นแนะนำให้พักผ่อนที่บ้านจนกว่าจะหายสนิทดีกว่านะคะ ร่างกายจะได้ฟื้นฟูเต็มที่ คุณครูเป็นห่วงน้องมากๆ ค่ะ"
-
-คุณพ่อคุณแม่: "เปิดกี่โมงคะ"
-ครูนุ่น: "7:30 น.ค่ะ"
-
-คุณพ่อคุณแม่: "สมัครเรียนต้องใช้เอกสารอะไรบ้างคะ"
-ครูนุ่น: "ใช้แค่สำเนาทะเบียนบ้านที่มีเลขที่บ้านและชื่อน้อง 1 ฉบับ กับสำเนาสูติบัตร 1 ฉบับค่ะ อ้อ ตอนมาโรงเรียนเตรียมแปรงสีฟัน ยาสีฟัน แล้วก็แป้งทาตัวน้องมาด้วยนะคะ"
 
 === ข้อมูลโรงเรียนอนุบาลศิริกุล ===
 ที่ตั้ง: 143 หมู่ 1 ตำบลโพนสว่าง อำเภอเมืองหนองคาย จังหวัดหนองคาย 43100
@@ -93,24 +78,15 @@ Facebook: โรงเรียนอนุบาลศิริกุล
   developer: `คุณคือผู้ช่วย AI สำหรับพัฒนาระบบแชทบอทโรงเรียนอนุบาลศิริกุล ตอบเรื่อง Node.js, API, Webhook ให้กระชับ เน้นแก้ปัญหา`
 };
 
-// ── 4. ฟังก์ชันสร้างปุ่มเลือก Role ───────────────────────────────
+// ── 4. ชุดเมนู Flex Messages ───────────────────────────────
 function getRoleSelectionMessage() {
   return {
-    type: "flex",
-    altText: "กรุณาเลือกประเภทผู้ใช้งาน",
+    type: "flex", altText: "กรุณาเลือกประเภทผู้ใช้งาน",
     contents: {
       type: "bubble",
-      header: {
-        type: "box",
-        layout: "vertical",
-        contents: [{ type: "text", text: "🏫 โรงเรียนอนุบาลศิริกุล", weight: "bold", size: "lg", color: "#ffffff" }],
-        backgroundColor: "#F97316",
-        paddingAll: "16px",
-      },
+      header: { type: "box", layout: "vertical", backgroundColor: "#F97316", paddingAll: "16px", contents: [{ type: "text", text: "🏫 โรงเรียนอนุบาลศิริกุล", weight: "bold", size: "lg", color: "#ffffff" }] },
       body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
+        type: "box", layout: "vertical", spacing: "sm",
         contents: [
           { type: "text", text: "สวัสดีค่ะ กรุณาเลือกประเภทการใช้งานของคุณนะคะ", wrap: true, margin: "md" },
           { type: "separator", margin: "lg" },
@@ -118,41 +94,70 @@ function getRoleSelectionMessage() {
           { type: "button", action: { type: "message", label: "💡 ผู้สนใจส่งบุตรหลาน", text: "เลือก:interested" }, style: "primary", color: "#22C55E", margin: "sm", height: "sm" },
           { type: "button", action: { type: "message", label: "👩‍🏫 คุณครู / บุคลากร", text: "เลือก:teacher" }, style: "primary", color: "#3B82F6", margin: "sm", height: "sm" },
           { type: "button", action: { type: "message", label: "👔 ผู้อำนวยการ", text: "เลือก:director" }, style: "primary", color: "#8B5CF6", margin: "sm", height: "sm" },
-        ],
-      },
-    },
+        ]
+      }
+    }
   };
 }
 
-// ── 5. Groq Generate with Retry ─────────────────────────────
+// เมนูสำหรับคุณครู (ปุ่มเลือกห้อง)
+function getTeacherMenuMessage(teacherName) {
+  return {
+    type: "flex", altText: "เมนูจัดการข้อมูลคุณครู",
+    contents: {
+      type: "bubble",
+      header: { type: "box", layout: "vertical", backgroundColor: "#3B82F6", paddingAll: "16px", contents: [{ type: "text", text: "👩‍🏫 เมนูจัดการข้อมูล", weight: "bold", size: "lg", color: "#ffffff" }] },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm",
+        contents: [
+          { type: "text", text: `ครู${teacherName} ต้องการบันทึกข้อมูลของชั้นไหนคะ?`, wrap: true, margin: "md", weight: "bold" },
+          { type: "separator", margin: "lg" },
+          { type: "button", action: { type: "message", label: "👶 เตรียมอนุบาล", text: "บันทึก:เตรียมอนุบาล" }, style: "secondary", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "🎒 อนุบาล 1", text: "บันทึก:อนุบาล 1" }, style: "secondary", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "🎒 อนุบาล 2", text: "บันทึก:อนุบาล 2" }, style: "secondary", margin: "sm", height: "sm" },
+          { type: "button", action: { type: "message", label: "🎒 อนุบาล 3", text: "บันทึก:อนุบาล 3" }, style: "secondary", margin: "sm", height: "sm" },
+        ]
+      }
+    }
+  };
+}
+
+// เมนูสำหรับผู้อำนวยการ
+function getDirectorMenuMessage() {
+  return {
+    type: "flex", altText: "เมนูผู้อำนวยการ",
+    contents: {
+      type: "bubble",
+      header: { type: "box", layout: "vertical", backgroundColor: "#8B5CF6", paddingAll: "16px", contents: [{ type: "text", text: "👔 ระบบผู้อำนวยการ", weight: "bold", size: "lg", color: "#ffffff" }] },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm",
+        contents: [
+          { type: "text", text: "ท่านผู้อำนวยการต้องการเรียกดูรายงานส่วนไหนครับ?", wrap: true, margin: "md", weight: "bold" },
+          { type: "separator", margin: "lg" },
+          { type: "button", action: { type: "message", label: "📊 ดูสรุปข้อมูลวันนี้ทั้งหมด", text: "ดึงรายงาน:สรุปภาพรวม" }, style: "primary", color: "#8B5CF6", margin: "sm", height: "sm" },
+        ]
+      }
+    }
+  };
+}
+
+// ── 5. Groq Generate ─────────────────────────────
 async function generateReply(userMessage, role, userId, retries = 3) {
   let systemPrompt = SYSTEM_PROMPTS[role] || SYSTEM_PROMPTS["parent"]; 
-
-  // แนบข้อมูลเด็กให้ AI รู้ (ถ้าเป็นผู้ปกครองและกรอกข้อมูลแล้ว)
   if (role === "parent" && userData[userId] && userData[userId].childName) {
       systemPrompt += `\n\n[ข้อมูลเฉพาะกิจ: ผู้ปกครองท่านนี้เป็นผู้ปกครองของ "น้อง${userData[userId].childName}" เดินทางโดย: "${userData[userId].transport}" ให้เรียกชื่อน้องในการสนทนาให้เป็นธรรมชาติด้วย]`;
   }
-
   for (let i = 0; i < retries; i++) {
     try {
       const completion = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt }, 
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: 1024,
-        temperature: 0.7, // ลดความเพี้ยน ให้ตอบคงเส้นคงวา
+        messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userMessage } ],
+        max_tokens: 1024, temperature: 0.7,
       });
       return completion.choices[0].message.content;
-
     } catch (error) {
-      if (error.status === 429 && i < retries - 1) {
-        const delay = 15000 * (i + 1);
-        await new Promise(res => setTimeout(res, delay));
-      } else {
-        throw error;
-      }
+      if (error.status === 429 && i < retries - 1) { await new Promise(res => setTimeout(res, 15000 * (i + 1))); } 
+      else throw error;
     }
   }
 }
@@ -164,155 +169,135 @@ async function handleEvent(event) {
   const userId = event.source.userId;
   const text = event.message.text.trim();
 
-  // ดักจับคำสั่งเพื่อเริ่มเลือก Role ใหม่
-  const isReset = RESET_KEYWORDS.some(k => text.includes(k));
-  if (isReset) {
+  // ดักจับคำสั่ง Reset
+  if (RESET_KEYWORDS.some(k => text.includes(k))) {
     delete userState[userId];
     delete userData[userId];
-    return lineClient.replyMessage({
-      replyToken: event.replyToken,
-      messages: [getRoleSelectionMessage()],
-    });
+    return lineClient.replyMessage({ replyToken: event.replyToken, messages: [getRoleSelectionMessage()] });
   }
 
-  // 🔒 Flow รักษาความปลอดภัยของ "ผู้อำนวยการ"
+  // 👔 Flow ผู้อำนวยการ: รหัสผ่าน & เมนู
   if (userState[userId] === "WAITING_FOR_PIN") {
     const SECRET_PIN = process.env.DIRECTOR_PIN || "9999"; 
     if (text === SECRET_PIN) {
       userState[userId] = "director"; 
       return lineClient.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: "text", text: "✅ รหัสถูกต้อง ยินดีต้อนรับท่านผู้อำนวยการครับ" }],
+        messages: [{ type: "text", text: "✅ ยืนยันตัวตนสำเร็จ" }, getDirectorMenuMessage()],
       });
     } else {
       delete userState[userId]; 
-      return lineClient.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{ type: "text", text: "❌ รหัสผ่านไม่ถูกต้องค่ะ" }, getRoleSelectionMessage()],
-      });
+      return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "❌ รหัสผิดพลาด" }, getRoleSelectionMessage()] });
     }
   }
 
-  // 🔒 Flow รักษาความปลอดภัยของ "คุณครู"
+  if (userState[userId] === "director" && text === "ดึงรายงาน:สรุปภาพรวม") {
+    // 🚧 ข้อมูลจำลองสำหรับ ผอ. รอเชื่อม Google Sheets
+    const mockReport = `📊 รายงานประจำวันที่ 1 พ.ค. 2569\n\n🟢 ยอดมาเรียนรวม: 110 คน\n🔴 ขาดเรียน: 5 คน\n😷 ป่วย: 2 คน (น้องเอ อ.2, น้องบี อ.1)\n\n🍱 เมนูวันนี้: ข้าวผัดไก่, ซุปใส\n\n(หมายเหตุ: นี่คือข้อมูลจำลอง ระบบกำลังเชื่อมกับฐานข้อมูลค่ะ)`;
+    return lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: "text", text: mockReport }, getDirectorMenuMessage()],
+    });
+  }
+
+  // 👩‍🏫 Flow คุณครู: ยืนยันชื่อ & เมนู
   if (userState[userId] === "WAITING_FOR_TEACHER_NAME") {
     if (TEACHER_NAMES.includes(text)) {
       userState[userId] = "teacher"; 
+      userData[userId] = { teacherName: text };
       return lineClient.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: "text", text: `✅ ยืนยันตัวตนสำเร็จ สวัสดีคุณครู${text}ค่ะ เข้าสู่ระบบเรียบร้อย พิมพ์สั่งงานได้เลยค่ะ` }],
+        messages: [{ type: "text", text: `✅ ยืนยันตัวตนสำเร็จ` }, getTeacherMenuMessage(text)],
       });
     } else {
       delete userState[userId]; 
-      return lineClient.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{ type: "text", text: "❌ ชื่อคุณครูไม่ถูกต้องในระบบค่ะ กรุณาติดต่อผู้อำนวยการ" }, getRoleSelectionMessage()],
-      });
+      return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "❌ ชื่อคุณครูไม่ถูกต้องในระบบค่ะ" }, getRoleSelectionMessage()] });
     }
   }
 
-  // 📝 Flow เก็บข้อมูลของ "ผู้ปกครอง" (ชื่อลูก)
+  if (userState[userId] === "teacher" && text.startsWith("บันทึก:")) {
+    const targetClass = text.split(":")[1];
+    userState[userId] = "WAITING_FOR_ATTENDANCE";
+    userData[userId].targetClass = targetClass;
+    return lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: "text", text: `📝 กำลังบันทึกข้อมูลชั้น: ${targetClass}\n\nกรุณาพิมพ์ ยอดนักเรียนมา, ขาด, ป่วย และเมนูอาหาร (เช่น มา 20 ขาด 2 ป่วย 0 เมนูข้าวผัด)` }],
+    });
+  }
+
+  if (userState[userId] === "WAITING_FOR_ATTENDANCE") {
+    const targetClass = userData[userId].targetClass;
+    // 🚧 อนาคตจะเอาข้อความ (text) ตรงนี้ยิงขึ้น Google Sheets
+    userState[userId] = "teacher"; // กลับไปสถานะครูปกติ
+    return lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [
+          { type: "text", text: `✅ บันทึกข้อมูลชั้น "${targetClass}" เรียบร้อยแล้วค่ะ ขอบคุณครู${userData[userId].teacherName} มากค่ะ!` },
+          getTeacherMenuMessage(userData[userId].teacherName)
+      ],
+    });
+  }
+
+  // 📝 Flow เก็บข้อมูล ผู้ปกครอง
   if (userState[userId] === "WAITING_FOR_CHILD_NAME") {
-    userData[userId] = { childName: text }; // บันทึกชื่อลูก
+    userData[userId] = { childName: text }; 
     userState[userId] = "WAITING_FOR_TRANSPORT"; 
     return lineClient.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ 
-          type: "text", 
-          text: `รับทราบค่ะ ข้อมูลของน้อง${text}นะคะ\nรบกวนคุณพ่อคุณแม่แจ้งวิธีเดินทางของน้องค่ะ:\n1. รถรับ-ส่งโรงเรียน\n2. ผู้ปกครองมารับ-ส่งเอง\n(พิมพ์ 1, 2 หรือพิมพ์ตอบได้เลยค่ะ)` 
-      }],
+      messages: [{ type: "text", text: `รับทราบค่ะ ข้อมูลของน้อง${text}นะคะ\nรบกวนแจ้งวิธีเดินทางค่ะ:\n1. รถรับ-ส่งโรงเรียน\n2. รับ-ส่งเอง` }],
     });
   }
 
-  // 📝 Flow เก็บข้อมูลของ "ผู้ปกครอง" (วิธีรับส่ง)
   if (userState[userId] === "WAITING_FOR_TRANSPORT") {
-    userData[userId].transport = text; // บันทึกการรับส่ง
-    userState[userId] = "parent"; // เปลี่ยนสถานะเป็น parent สมบูรณ์
+    userData[userId].transport = text; 
+    userState[userId] = "parent"; 
     return lineClient.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ 
-          type: "text", 
-          text: `✅ บันทึกข้อมูลน้อง${userData[userId].childName} เรียบร้อยค่ะ ครูนุ่นยินดีให้คำปรึกษา พิมพ์คำถามได้เลยนะคะ (พิมพ์ 'เปลี่ยนสถานะ' เพื่อเริ่มใหม่ได้เสมอค่ะ)` 
-      }],
+      messages: [{ type: "text", text: `✅ บันทึกข้อมูลน้อง${userData[userId].childName} เรียบร้อย พิมพ์คำถามได้เลยนะคะ (พิมพ์ 'เปลี่ยนสถานะ' เพื่อเริ่มใหม่ได้เสมอ)` }],
     });
   }
 
-  // ดักจับเมื่อผู้ใช้กดปุ่มเลือก Role
+  // ดักจับการกดปุ่มจากเมนูหลัก (ผู้ปกครอง, ผอ., ครู)
   if (text.startsWith("เลือก:")) {
     const role = text.split(":")[1];
-    
     if (role === "director") {
         userState[userId] = "WAITING_FOR_PIN";
-        return lineClient.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{ type: "text", text: "🔒 กรุณากรอกรหัส PIN 4 หลักเพื่อยืนยันตัวตน:" }],
-        });
+        return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "🔒 กรุณากรอกรหัส PIN 4 หลักเพื่อยืนยันตัวตน:" }] });
     }
-    
     if (role === "teacher") {
         userState[userId] = "WAITING_FOR_TEACHER_NAME";
-        return lineClient.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{ type: "text", text: "🔒 กรุณาพิมพ์ชื่อเล่นของคุณครู เพื่อยืนยันตัวตนค่ะ (เช่น โจ้, เจี๊ยบ):" }],
-        });
+        return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "🔒 กรุณาพิมพ์ชื่อเล่นของคุณครู เพื่อยืนยันตัวตนค่ะ (เช่น โจ้, เจี๊ยบ):" }] });
     }
-
     if (role === "parent") {
         userState[userId] = "WAITING_FOR_CHILD_NAME";
-        return lineClient.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{ type: "text", text: "📝 รบกวนคุณพ่อคุณแม่พิมพ์ 'ชื่อเล่น' ของน้องให้ครูนุ่นทราบหน่อยนะคะ:" }],
-        });
+        return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "📝 รบกวนพิมพ์ 'ชื่อเล่น' ของน้องให้ครูนุ่นทราบหน่อยนะคะ:" }] });
     }
-
-    // Role อื่นๆ (ผู้สนใจ, นักพัฒนา) ให้ผ่านได้เลย
     if (SYSTEM_PROMPTS[role]) {
         userState[userId] = role;
-        return lineClient.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{ type: "text", text: "✅ ระบบบันทึกสถานะเรียบร้อย พิมพ์ข้อความพูดคุยได้เลยนะคะ" }],
-        });
+        return lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "✅ ระบบบันทึกสถานะเรียบร้อย พิมพ์ข้อความพูดคุยได้เลยนะคะ" }] });
     }
   }
 
-  // ถ้าผู้ใช้ยังไม่มี Role ให้ส่งปุ่มไปให้กดเลือกก่อน
   if (!userState[userId]) {
-    return lineClient.replyMessage({
-      replyToken: event.replyToken,
-      messages: [getRoleSelectionMessage()],
-    });
+    return lineClient.replyMessage({ replyToken: event.replyToken, messages: [getRoleSelectionMessage()] });
   }
 
-  // ส่งข้อความให้ AI คิดตาม Role
+  // ส่งให้ AI
   try {
-    const replyText = await generateReply(text, userState[userId], userId); // ส่ง userId ไปด้วย
-    await lineClient.replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: "text", text: replyText }],
-    });
+    const replyText = await generateReply(text, userState[userId], userId); 
+    await lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: replyText }] });
   } catch (error) {
     console.error("Error:", error);
-    await lineClient.replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: "text", text: "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ" }],
-    });
+    await lineClient.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ" }] });
   }
 }
 
 // ── 7. Express Server ───────────────────────────────────────
 const app = express();
-
-app.post(
-  "/webhook",
-  line.middleware(lineConfig),
-  async (req, res) => {
-    res.status(200).json({ status: "ok" });
-    await Promise.all(req.body.events.map(handleEvent));
-  }
-);
-
-app.get("/", (req, res) => res.send("Sirikul Chatbot is running ✅"));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`เซิร์ฟเวอร์โรงเรียนอนุบาลศิริกุล เปิดใช้งานแล้วที่พอร์ต ${PORT}`);
+app.post("/webhook", line.middleware(lineConfig), async (req, res) => {
+  res.status(200).json({ status: "ok" });
+  await Promise.all(req.body.events.map(handleEvent));
 });
+app.get("/", (req, res) => res.send("Sirikul Chatbot is running ✅"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => { console.log(`เซิร์ฟเวอร์เปิดใช้งานแล้วที่พอร์ต ${PORT}`); });
